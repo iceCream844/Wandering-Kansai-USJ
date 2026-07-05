@@ -1167,7 +1167,7 @@ const currentTime =
     clockMode={clockMode}
     setClockMode={setClockMode}
     now={currentTime}
-    setNow={setNow}
+    setNow={setNow === "live" ? setNow : setDemoNow}
     playing={playing}
     setPlaying={setPlaying}
     theme={theme}
