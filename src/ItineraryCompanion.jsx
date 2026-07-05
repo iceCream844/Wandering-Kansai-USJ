@@ -191,40 +191,40 @@ const CATEGORY_META = {
   rest: { icon: Bed, label: "Rest" },
 };
 
-function getStatus(activity, now, completed) {
+function getStatus(activity, currentTime, completed) {
   if (completed.has(activity.id)) return "completed";
-  if (now >= activity.start && now < activity.end) return "current";
-  if (now < activity.start) return "upcoming";
+  if (currentTime >= activity.start && currentTime < activity.end) return "current";
+  if (currentTime < activity.start) return "upcoming";
   return "missed"; // ended, never marked complete
 }
 
-function computeScheduleStatus(activities, now, completed) {
-  const expected = activities.filter((a) => !a.optional && a.end <= now).length;
+function computeScheduleStatus(activities, currentTime, completed) {
+  const expected = activities.filter((a) => !a.optional && a.end <= currentTime).length;
   const actual = activities.filter((a) => !a.optional && completed.has(a.id)).length;
   if (actual >= expected) return actual === expected ? "on-time" : "early";
   return "behind";
 }
 
-function findCurrentAndNext(activities, now) {
+function findCurrentAndNext(activities, currentTime) {
   const sorted = [...activities].sort((a, b) => a.start - b.start);
-  const current = sorted.find((a) => now >= a.start && now < a.end) || null;
-  const next = sorted.find((a) => a.start > now) || null;
+  const current = sorted.find((a) => currentTime >= a.start && currentTime < a.end) || null;
+  const next = sorted.find((a) => a.start > currentTime) || null;
   return { current, next };
 }
 
-function computeNotifications(activities, now, completed) {
+function computeNotifications(activities, currentTime, completed) {
   const notifs = [];
-  const { current, next } = findCurrentAndNext(activities, now);
+  const { current, next } = findCurrentAndNext(activities, currentTime);
 
   activities.forEach((a) => {
     if (a.isReservation && a.reminderMinutesBefore && !completed.has(a.id)) {
-      const until = a.start - now;
+      const until = a.start - currentTime;
       if (until > 0 && until <= a.reminderMinutesBefore) {
         notifs.push({ id: `res-${a.id}`, tone: "gold", icon: Lock, text: `Reservation soon: ${a.title} in ${until} min` });
       }
     }
     if (a.mealRecommendation && !completed.has(a.id)) {
-      const until = a.start - now;
+      const until = a.start - currentTime;
       if (until > 0 && until <= 30) {
         notifs.push({ id: `meal-${a.id}`, tone: "teal", icon: Utensils, text: `${a.title} coming up — good time to start heading over` });
       }
@@ -233,12 +233,12 @@ function computeNotifications(activities, now, completed) {
 
   if (current && next && current.walkToNext) {
     const leaveBy = current.end - current.walkToNext;
-    if (now >= leaveBy && now < current.end) {
+    if (currentTime >= leaveBy && currentTime < current.end) {
       notifs.push({ id: `leave-${current.id}`, tone: "coral", icon: Footprints, text: `Time to leave for ${next.title} (${current.walkToNext} min walk)` });
     }
   }
 
-  const status = computeScheduleStatus(activities, now, completed);
+  const status = computeScheduleStatus(activities, currentTime, completed);
   if (status === "behind") {
     notifs.push({ id: "behind", tone: "danger", icon: AlertTriangle, text: "Running behind schedule — consider skipping an optional stop" });
   }
@@ -255,7 +255,7 @@ const Glass = ({ className = "", children, style, ...rest }) => (
 const StatusPill = ({ status }) => {
   const map = {
     completed: { label: "Completed", cls: "pill-completed" },
-    current: { label: "Happening now", cls: "pill-current" },
+    current: { label: "Happening currentTime", cls: "pill-current" },
     upcoming: { label: "Upcoming", cls: "pill-upcoming" },
     missed: { label: "Missed", cls: "pill-missed" },
   };
@@ -277,8 +277,8 @@ const Countdown = ({ minutes }) => {
 // ---------------------------------------------------------------------------
 // Activity Card (Timeline)
 // ---------------------------------------------------------------------------
-function ActivityCard({ activity, now, completed, onToggleComplete, onOpen, isLast }) {
-  const status = getStatus(activity, now, completed);
+function ActivityCard({ activity, currentTime, completed, onToggleComplete, onOpen, isLast }) {
+  const status = getStatus(activity, currentTime, completed);
   const meta = CATEGORY_META[activity.category] || CATEGORY_META.ride;
   const Icon = meta.icon;
   const isReservation = activity.isReservation;
@@ -316,12 +316,12 @@ function ActivityCard({ activity, now, completed, onToggleComplete, onOpen, isLa
         </div>
         {status === "current" && (
           <div className="live-row">
-            <Gauge size={13} /> Ends in <Countdown minutes={activity.end - now} />
+            <Gauge size={13} /> Ends in <Countdown minutes={activity.end - currentTime} />
           </div>
         )}
         {status === "upcoming" && isReservation && (
           <div className="live-row gold">
-            <Lock size={13} /> Starts in <Countdown minutes={activity.start - now} />
+            <Lock size={13} /> Starts in <Countdown minutes={activity.start - currentTime} />
           </div>
         )}
         <button
@@ -373,16 +373,16 @@ function FreeTimeCard({ slot }) {
 // ---------------------------------------------------------------------------
 // Home / Dashboard
 // ---------------------------------------------------------------------------
-function Dashboard({ activities, now, completed, group, onOpen, notifications }) {
-  const { current, next } = findCurrentAndNext(activities, now);
-  const status = computeScheduleStatus(activities, now, completed);
+function Dashboard({ activities, currentTime, completed, group, onOpen, notifications }) {
+  const { current, next } = findCurrentAndNext(activities, currentTime);
+  const status = computeScheduleStatus(activities, currentTime, completed);
   const total = activities.length;
   const done = activities.filter((a) => completed.has(a.id)).length;
   const pct = Math.round((done / total) * 100);
 
   const dayStart = activities[0].start, dayEnd = activities[activities.length - 1].end;
-  const dayPct = Math.min(100, Math.max(0, Math.round(((now - dayStart) / (dayEnd - dayStart)) * 100)));
-  const phase = now < 12 * 60 ? "Morning" : now < 17 * 60 ? "Afternoon" : "Evening";
+  const dayPct = Math.min(100, Math.max(0, Math.round(((currentTime - dayStart) / (dayEnd - dayStart)) * 100)));
+  const phase = currentTime < 12 * 60 ? "Morning" : currentTime < 17 * 60 ? "Afternoon" : "Evening";
 
   const statusMeta = {
     "on-time": { label: "On time", cls: "status-good" },
@@ -397,7 +397,7 @@ function Dashboard({ activities, now, completed, group, onOpen, notifications })
           <div className="eyebrow">{ITINERARY.trip.date} · {ITINERARY.trip.timezone}</div>
           <h1>{ITINERARY.trip.title}</h1>
         </div>
-        <div className="clock-chip"><Clock size={13} /> {fmt(now)}</div>
+        <div className="clock-chip"><Clock size={13} /> {fmt(currentTime)}</div>
       </div>
 
       {notifications.length > 0 && (
@@ -425,9 +425,9 @@ function Dashboard({ activities, now, completed, group, onOpen, notifications })
         <div className="bp-perforation" />
         <div className="bp-row">
           <div className="bp-col">
-            <div className="bp-label">Now</div>
+            <div className="bp-label">currentTime</div>
             <div className="bp-activity">{current ? current.title : "Free time"}</div>
-            {current && <div className="bp-sub">Ends in <Countdown minutes={current.end - now} /></div>}
+            {current && <div className="bp-sub">Ends in <Countdown minutes={current.end - currentTime} /></div>}
           </div>
           <ArrowRight size={16} className="bp-arrow" />
           <div className="bp-col">
@@ -435,7 +435,7 @@ function Dashboard({ activities, now, completed, group, onOpen, notifications })
             <div className="bp-activity">{next ? next.title : "Day complete"}</div>
             {next && (
               <div className="bp-sub">
-                <Footprints size={12} /> {next.walkToNext ?? "—"}m walk · starts <Countdown minutes={next.start - now} />
+                <Footprints size={12} /> {next.walkToNext ?? "—"}m walk · starts <Countdown minutes={next.start - currentTime} />
               </div>
             )}
           </div>
@@ -480,7 +480,7 @@ function Dashboard({ activities, now, completed, group, onOpen, notifications })
 // ---------------------------------------------------------------------------
 // Timeline screen
 // ---------------------------------------------------------------------------
-function TimelineScreen({ activities, freeTimeSlots, now, completed, onToggleComplete, onOpen }) {
+function TimelineScreen({ activities, freeTimeSlots, currentTime, completed, onToggleComplete, onOpen }) {
   const items = [];
   activities.forEach((a) => {
     items.push({ kind: "activity", data: a, sortKey: a.start });
@@ -498,7 +498,7 @@ function TimelineScreen({ activities, freeTimeSlots, now, completed, onToggleCom
             <ActivityCard
               key={item.data.id}
               activity={item.data}
-              now={now}
+              currentTime={currentTime}
               completed={completed}
               onToggleComplete={onToggleComplete}
               onOpen={onOpen}
@@ -516,7 +516,7 @@ function TimelineScreen({ activities, freeTimeSlots, now, completed, onToggleCom
 // ---------------------------------------------------------------------------
 // Route screen — connected nodes, works for any number of stops
 // ---------------------------------------------------------------------------
-function RouteScreen({ activities, now, completed }) {
+function RouteScreen({ activities, currentTime, completed }) {
   // collapse consecutive duplicate areas into route nodes
   const nodes = [];
   activities.forEach((a) => {
@@ -528,7 +528,7 @@ function RouteScreen({ activities, now, completed }) {
   });
 
   const completedNodeCount = nodes.filter((n) => n.activities.every((a) => completed.has(a.id))).length;
-  const activeIndex = nodes.findIndex((n) => n.activities.some((a) => now >= a.start && now < a.end));
+  const activeIndex = nodes.findIndex((n) => n.activities.some((a) => currentTime >= a.start && currentTime < a.end));
 
   return (
     <div className="screen">
@@ -565,7 +565,7 @@ function RouteScreen({ activities, now, completed }) {
 // ---------------------------------------------------------------------------
 // Reservations screen
 // ---------------------------------------------------------------------------
-function ReservationsScreen({ activities, now, completed, onOpen }) {
+function ReservationsScreen({ activities, currentTime, completed, onOpen }) {
   const reservations = activities.filter((a) => a.isReservation);
   return (
     <div className="screen">
@@ -573,7 +573,7 @@ function ReservationsScreen({ activities, now, completed, onOpen }) {
       <p className="screen-sub">{reservations.length} fixed Express Pass windows today — these can't move</p>
       <div className="res-list">
         {reservations.map((r) => {
-          const status = getStatus(r, now, completed);
+          const status = getStatus(r, currentTime, completed);
           return (
             <Glass key={r.id} className={`res-card ${status === "current" ? "card-current" : ""}`} onClick={() => onOpen(r)}>
               <div className="res-lock"><Lock size={16} /></div>
@@ -584,7 +584,7 @@ function ReservationsScreen({ activities, now, completed, onOpen }) {
               </div>
               <div className="res-right">
                 <StatusPill status={status} />
-                {status === "upcoming" && <Countdown minutes={r.start - now} />}
+                {status === "upcoming" && <Countdown minutes={r.start - currentTime} />}
               </div>
             </Glass>
           );
@@ -636,48 +636,164 @@ function ExploreScreen({ freeTimeSlots, activities }) {
 // ---------------------------------------------------------------------------
 // Settings screen — includes the demo clock control
 // ---------------------------------------------------------------------------
-function SettingsScreen({ now, setNow, playing, setPlaying, theme, setTheme, dayStart, dayEnd, speed, setSpeed }) {
+function SettingsScreen({
+  clockMode,
+  setClockMode,
+  now,
+  setNow,
+  playing,
+  setPlaying,
+  theme,
+  setTheme,
+  dayStart,
+  dayEnd,
+  speed,
+  setSpeed,
+}) {
   return (
     <div className="screen">
       <h2 className="screen-title">Settings</h2>
 
+      {/* Appearance */}
       <Glass className="settings-card">
         <div className="settings-row">
           <span>Appearance</span>
-          <button className="theme-toggle" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? <Moon size={14} /> : <Sun size={14} />} {theme === "dark" ? "Dark" : "Light"}
+          <button
+            className="theme-toggle"
+            onClick={() =>
+              setTheme(theme === "dark" ? "light" : "dark")
+            }
+          >
+            {theme === "dark" ? (
+              <Moon size={14} />
+            ) : (
+              <Sun size={14} />
+            )}
+            {theme === "dark" ? "Dark" : "Light"}
           </button>
         </div>
       </Glass>
 
+      {/* Clock Mode */}
       <Glass className="settings-card">
         <div className="settings-row">
-          <span>Demo clock</span>
-          <button className="theme-toggle" onClick={() => setPlaying((p) => !p)}>
-            {playing ? <Pause size={14} /> : <Play size={14} />} {playing ? "Pause" : "Auto-advance"}
-          </button>
+          <span>Clock Mode</span>
+
+          <select
+            value={clockMode}
+            onChange={(e) => setClockMode(e.target.value)}
+            className="theme-toggle"
+          >
+            <option value="live">
+              🇯🇵 Live Japan Time
+            </option>
+
+            <option value="demo">
+              🎮 Demo Mode
+            </option>
+          </select>
         </div>
-        <div className="demo-time">{fmt(now)}</div>
-        <input
-          type="range" min={dayStart} max={dayEnd} value={now}
-          onChange={(e) => setNow(Number(e.target.value))}
-          className="demo-slider"
-        />
-        <div className="settings-row" style={{ marginTop: 12 }}>
-          <span>Playback speed</span>
-          <div className="speed-toggle">
-            {[1, 4, 12].map((s) => (
-              <button key={s} className={speed === s ? "speed-btn active" : "speed-btn"} onClick={() => setSpeed(s)}>{s}×</button>
-            ))}
-          </div>
-        </div>
-        <p className="settings-hint">Drag the slider (or press auto-advance) to move through the day and watch the whole app update live — statuses, countdowns, notifications, and progress all recompute from this one clock.</p>
       </Glass>
 
+      {/* Demo Clock */}
+      {clockMode === "demo" && (
+        <Glass className="settings-card">
+          <div className="settings-row">
+            <span>Demo Clock</span>
+
+            <button
+              className="theme-toggle"
+              onClick={() => setPlaying((p) => !p)}
+            >
+              {playing ? <Pause size={14} /> : <Play size={14} />}
+              {playing ? "Pause" : "Auto-advance"}
+            </button>
+          </div>
+
+          <div className="demo-time">
+            {fmt(now)}
+          </div>
+
+          <input
+            type="range"
+            min={dayStart}
+            max={dayEnd}
+            value={now}
+            onChange={(e) => setNow(Number(e.target.value))}
+            className="demo-slider"
+          />
+
+          <div
+            className="settings-row"
+            style={{ marginTop: 12 }}
+          >
+            <span>Playback speed</span>
+
+            <div className="speed-toggle">
+              {[1, 4, 12].map((s) => (
+                <button
+                  key={s}
+                  className={
+                    speed === s
+                      ? "speed-btn active"
+                      : "speed-btn"
+                  }
+                  onClick={() => setSpeed(s)}
+                >
+                  {s}×
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="settings-hint">
+            Drag the slider or enable auto-advance to
+            simulate the itinerary.
+          </p>
+        </Glass>
+      )}
+
+      {/* Live Clock */}
+      {clockMode === "live" && (
+        <Glass className="settings-card">
+          <div className="settings-row">
+            <span>Live Japan Time</span>
+            <span className="muted">🇯🇵 JST</span>
+          </div>
+
+          <div className="demo-time">
+            {fmt(now)}
+          </div>
+
+          <p className="settings-hint">
+            Automatically synchronized with the current
+            time in Japan.
+          </p>
+        </Glass>
+      )}
+
+      {/* Trip Info */}
       <Glass className="settings-card">
-        <div className="settings-row"><span>Trip</span><span className="muted">{ITINERARY.trip.title}</span></div>
-        <div className="settings-row"><span>Group size</span><span className="muted">{ITINERARY.group.size} guests</span></div>
-        <div className="settings-row"><span>Timezone</span><span className="muted">{ITINERARY.trip.timezone}</span></div>
+        <div className="settings-row">
+          <span>Trip</span>
+          <span className="muted">
+            {ITINERARY.trip.title}
+          </span>
+        </div>
+
+        <div className="settings-row">
+          <span>Group size</span>
+          <span className="muted">
+            {ITINERARY.group.size} guests
+          </span>
+        </div>
+
+        <div className="settings-row">
+          <span>Timezone</span>
+          <span className="muted">
+            {ITINERARY.trip.timezone}
+          </span>
+        </div>
       </Glass>
     </div>
   );
@@ -755,24 +871,72 @@ export default function ItineraryCompanion() {
   const dayStart = activities[0].start - 30;
   const dayEnd = activities[activities.length - 1].end + 15;
 
-  const [now, setNow] = useState(activities[2].start - 10); // start just before the Hippogriff reservation for a good first impression
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(4);
+const [clockMode, setClockMode] = useState("live"); // "live" | "demo"
+
+const [currentTime, setNow] = useState(0);
+
+const [demoNow, setDemoNow] = useState(
+  activities[2].start - 10
+);
+
+const [playing, setPlaying] = useState(false);
+const [speed, setSpeed] = useState(4);
   const [tab, setTab] = useState("home");
   const [completed, setCompleted] = useState(new Set());
   const [selected, setSelected] = useState(null);
   const [theme, setTheme] = useState("dark");
   const rafRef = useRef(null);
 
-  useEffect(() => {
-    if (!playing) return;
-    const id = setInterval(() => {
-      setNow((n) => (n + speed >= dayEnd ? dayStart : n + speed));
-    }, 700);
-    return () => clearInterval(id);
-  }, [playing, speed, dayEnd, dayStart]);
+useEffect(() => {
+  if (clockMode !== "live") return;
 
-  const notifications = useMemo(() => computeNotifications(activities, now, completed), [now, completed]);
+  const updateJapanClock = () => {
+    const japan = new Date(
+      new Date().toLocaleString("en-US", {
+        timeZone: "Asia/Tokyo",
+      })
+    );
+
+    setNow(
+      japan.getHours() * 60 +
+      japan.getMinutes()
+    );
+  };
+
+  updateJapanClock();
+
+  const id = setInterval(updateJapanClock, 1000);
+
+  return () => clearInterval(id);
+
+}, [clockMode]);
+
+useEffect(() => {
+
+  if (clockMode !== "demo") return;
+
+  if (!playing) return;
+
+  const id = setInterval(() => {
+
+    setDemoNow((n) =>
+      n + speed >= dayEnd
+        ? dayStart
+        : n + speed
+    );
+
+  },700);
+
+  return () => clearInterval(id);
+
+}, [clockMode, playing, speed, dayEnd, dayStart]);
+
+const currentTime =
+  clockMode === "live"
+    ? currentTime
+    : demoNow;
+
+  const notifications = useMemo(() => computeNotifications(activities, currentTime, completed), [currentTime, completed]);
 
   const toggleComplete = (id) => {
     setCompleted((prev) => {
@@ -990,16 +1154,16 @@ export default function ItineraryCompanion() {
       `}</style>
 
       {tab === "home" && (
-        <Dashboard activities={activities} now={now} completed={completed} group={ITINERARY.group} onOpen={setSelected} notifications={notifications} />
+        <Dashboard activities={activities} currentTime={currentTime} completed={completed} group={ITINERARY.group} onOpen={setSelected} notifications={notifications} />
       )}
       {tab === "timeline" && (
-        <TimelineScreen activities={activities} freeTimeSlots={ITINERARY.freeTimeSlots} now={now} completed={completed} onToggleComplete={toggleComplete} onOpen={setSelected} />
+        <TimelineScreen activities={activities} freeTimeSlots={ITINERARY.freeTimeSlots} currentTime={currentTime} completed={completed} onToggleComplete={toggleComplete} onOpen={setSelected} />
       )}
-      {tab === "route" && <RouteScreen activities={activities} now={now} completed={completed} />}
-      {tab === "reservations" && <ReservationsScreen activities={activities} now={now} completed={completed} onOpen={setSelected} />}
+      {tab === "route" && <RouteScreen activities={activities} currentTime={currentTime} completed={completed} />}
+      {tab === "reservations" && <ReservationsScreen activities={activities} currentTime={currentTime} completed={completed} onOpen={setSelected} />}
       {tab === "explore" && <ExploreScreen freeTimeSlots={ITINERARY.freeTimeSlots} activities={activities} />}
       {tab === "settings" && (
-        <SettingsScreen now={now} setNow={setNow} playing={playing} setPlaying={setPlaying} theme={theme} setTheme={setTheme} dayStart={dayStart} dayEnd={dayEnd} speed={speed} setSpeed={setSpeed} />
+        <SettingsScreen currentTime={currentTime} setNow={setNow} playing={playing} setPlaying={setPlaying} theme={theme} setTheme={setTheme} dayStart={dayStart} dayEnd={dayEnd} speed={speed} setSpeed={setSpeed} />
       )}
 
       <BottomNav tab={tab} setTab={setTab} />
