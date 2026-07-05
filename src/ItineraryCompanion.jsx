@@ -255,7 +255,7 @@ const Glass = ({ className = "", children, style, ...rest }) => (
 const StatusPill = ({ status }) => {
   const map = {
     completed: { label: "Completed", cls: "pill-completed" },
-    current: { label: "Happening currentTime", cls: "pill-current" },
+    current: { label: "Happening Now", cls: "pill-current" },
     upcoming: { label: "Upcoming", cls: "pill-upcoming" },
     missed: { label: "Missed", cls: "pill-missed" },
   };
@@ -873,7 +873,7 @@ export default function ItineraryCompanion() {
 
 const [clockMode, setClockMode] = useState("live"); // "live" | "demo"
 
-const [currentTime, setNow] = useState(0);
+const [now, setNow] = useState(0);
 
 const [demoNow, setDemoNow] = useState(
   activities[2].start - 10
@@ -933,7 +933,7 @@ useEffect(() => {
 
 const currentTime =
   clockMode === "live"
-    ? currentTime
+    ? now
     : demoNow;
 
   const notifications = useMemo(() => computeNotifications(activities, currentTime, completed), [currentTime, completed]);
@@ -1163,7 +1163,20 @@ const currentTime =
       {tab === "reservations" && <ReservationsScreen activities={activities} currentTime={currentTime} completed={completed} onOpen={setSelected} />}
       {tab === "explore" && <ExploreScreen freeTimeSlots={ITINERARY.freeTimeSlots} activities={activities} />}
       {tab === "settings" && (
-        <SettingsScreen currentTime={currentTime} setNow={setNow} playing={playing} setPlaying={setPlaying} theme={theme} setTheme={setTheme} dayStart={dayStart} dayEnd={dayEnd} speed={speed} setSpeed={setSpeed} />
+        <SettingsScreen
+    clockMode={clockMode}
+    setClockMode={setClockMode}
+    now={currentTime}
+    setNow={setNow}
+    playing={playing}
+    setPlaying={setPlaying}
+    theme={theme}
+    setTheme={setTheme}
+    dayStart={dayStart}
+    dayEnd={dayEnd}
+    speed={speed}
+    setSpeed={setSpeed}
+/>
       )}
 
       <BottomNav tab={tab} setTab={setTab} />
